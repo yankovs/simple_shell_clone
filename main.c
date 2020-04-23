@@ -5,7 +5,7 @@
 #include <sys/wait.h>
 
 #define MAX_CMND_LENGTH 100
-#define ERROR_MESSAGE "Error in system call"
+#define ERROR_MESSAGE "Error in system call\n"
 typedef enum { false, true } bool;
 
 bool runInBackground = false;
@@ -15,11 +15,14 @@ void parse(char* line, char** args) {
     line = strtok(line, "\n");
     token = strtok(line, " ");
 
+    if (strcmp(token, "exit") == 0) {
+        exit(1);
+    }
+
     while (token != NULL) {
         if (strcmp(token, "&") == 0) {
             runInBackground = true;
-            token = strtok(NULL, " ");
-            continue;
+            break;
         }
         *args++ = token;
         token = strtok(NULL, " ");
@@ -32,19 +35,13 @@ void execute(char** args) {
     pid_t pid;
     int status;
 
-    if ((pid = fork()) < 0) {
-        fprintf(stderr, ERROR_MESSAGE);
-        exit(1);
-    }
-    else if (pid == 0) {
+    if ((pid = fork()) == 0) {
+        execvp(*args, args);
+    } else {
         printf("%d\n", getpid());
-        if (execvp(*args, args) < 0) {
-            fprintf(stderr, ERROR_MESSAGE);
-            exit(1);
+        if (!runInBackground) {
+            wait(&status);
         }
-    }
-    else {
-        while (wait(&status) != pid) {}
     }
 }
 
@@ -64,8 +61,8 @@ int main(void) {
 
         args = (char**)malloc((count + 1) * sizeof(char*));
         parse(line, args);
-        execute(args);
 
+        execute(args);
         free(args);
     }
 }
