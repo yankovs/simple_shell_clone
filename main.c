@@ -6,6 +6,9 @@
 
 #define MAX_CMND_LENGTH 100
 #define ERROR_MESSAGE "Error in system call"
+typedef enum { false, true } bool;
+
+bool runInBackground = false;
 
 void parse(char* line, char** args) {
     char* token;
@@ -13,6 +16,11 @@ void parse(char* line, char** args) {
     token = strtok(line, " ");
 
     while (token != NULL) {
+        if (strcmp(token, "&") == 0) {
+            runInBackground = true;
+            token = strtok(NULL, " ");
+            continue;
+        }
         *args++ = token;
         token = strtok(NULL, " ");
     }
@@ -43,13 +51,12 @@ void execute(char** args) {
 int main(void) {
     char line[MAX_CMND_LENGTH];
     char** args = NULL;
-    int i = 0;
     int count = 0;
     while(1) {
         printf("%s", "> ");
         fgets(line, MAX_CMND_LENGTH, stdin);
 
-        for (i = 0;line[i] != '\0';i++)
+        for (int i = 0;line[i] != '\0';i++)
         {
             if (line[i] == ' ' && line[i+1] != ' ')
                 count++;
