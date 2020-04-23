@@ -6,17 +6,39 @@
 
 #define MAX_CMND_LENGTH 100
 #define ERROR_MESSAGE "Error in system call\n"
+#define cdCode 2
+#define builtinCode 1
 typedef enum { false, true } bool;
 
 bool runInBackground = false;
+int count = 0;
+char workingDir[100];
 
-void parse(char* line, char** args) {
+int parse(char* line, char** args) {
     char* token;
     line = strtok(line, "\n");
     token = strtok(line, " ");
 
     if (strcmp(token, "exit") == 0) {
         exit(1);
+    }
+    else if (strcmp(token, "cd") == 0) {
+        if (count > 2) {
+            fprintf(stderr, ERROR_MESSAGE);
+        }
+        else if (count == 2) {
+            token = strtok(NULL, " ");
+            printf("%s\n", token);
+            int outCode = chdir(token);
+            if (outCode == -1) {
+                fprintf(stderr, ERROR_MESSAGE);
+            }
+        }
+        else {
+            chdir(workingDir);
+        }
+
+        return cdCode;
     }
 
     while (token != NULL) {
@@ -29,6 +51,8 @@ void parse(char* line, char** args) {
     }
 
     *args = NULL;
+
+    return builtinCode;
 }
 
 void execute(char** args) {
@@ -48,7 +72,8 @@ void execute(char** args) {
 int main(void) {
     char line[MAX_CMND_LENGTH];
     char** args = NULL;
-    int count = 0;
+    getcwd(workingDir, 100);
+
     while(1) {
         printf("%s", "> ");
         fgets(line, MAX_CMND_LENGTH, stdin);
@@ -58,11 +83,33 @@ int main(void) {
             if (line[i] == ' ' && line[i+1] != ' ')
                 count++;
         }
+        count++;
+
+        int j = 0;
+        for (int i = 0; i < strlen(line); i ++) {
+            if (line[i] != '"' && line[i] != '\\') {
+                line[j++] = line[i];
+            } else if (line[i+1] == '"' && line[i] == '\\') {
+                line[j++] = '"';
+            } else if (line[i+1] != '"' && line[i] == '\\') {
+                line[j++] = '\\';
+            }
+        }
+
+        if(j>0) line[j]=0;
 
         args = (char**)malloc((count + 1) * sizeof(char*));
-        parse(line, args);
+
+        int code = parse(line, args);
+        if (code == cdCode) {
+            count = 0;
+            free(args);
+            continue;
+        }
 
         execute(args);
         free(args);
+
+        count = 0;
     }
 }
