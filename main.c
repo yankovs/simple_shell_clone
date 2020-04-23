@@ -6,6 +6,8 @@
 
 #define MAX_CMND_LENGTH 100
 #define ERROR_MESSAGE "Error in system call\n"
+#define ERROR_CD_FILE "No such file or directory\n"
+#define ERROR_CD_ARG "Too many arguments\n"
 #define cdCode 2
 #define builtinCode 1
 typedef enum { false, true } bool;
@@ -20,21 +22,25 @@ int parse(char* line, char** args) {
     token = strtok(line, " ");
 
     if (strcmp(token, "exit") == 0) {
+        printf("%d\n", getpid());
         exit(1);
     }
     else if (strcmp(token, "cd") == 0) {
         if (count > 2) {
-            fprintf(stderr, ERROR_MESSAGE);
+            printf("%d\n", getpid());
+            fprintf(stderr, ERROR_CD_ARG);
         }
         else if (count == 2) {
             token = strtok(NULL, " ");
-            printf("%s\n", token);
+            printf("%d\n", getpid());
             int outCode = chdir(token);
             if (outCode == -1) {
-                fprintf(stderr, ERROR_MESSAGE);
+                printf("%d\n", getpid());
+                fprintf(stderr, ERROR_CD_FILE);
             }
         }
         else {
+            printf("%d\n", getpid());
             chdir(workingDir);
         }
 
