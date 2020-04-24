@@ -35,6 +35,10 @@ int parse(char* line, char** args) {
     else if (strcmp(token, "history") == 0) {
 
     }
+    else if (strcmp(token, "clear") == 0) {
+        write(1, "\33[H\33[2J", 7);
+        return 0;
+    }
 
     while (token != NULL) {
         if (strcmp(token, "&") == 0) {
@@ -88,7 +92,9 @@ void execute(char** args) {
     }
     else {
         if ((pid = fork()) == 0) {
-            execvp(*args, args);
+            if (execvp(*args, args) == -1) {
+                fprintf(stderr, ERROR_MESSAGE);
+            }
         } else {
             printf("%d\n", pid);
             if (waitpid(pid, NULL, 0) != pid) {
@@ -131,7 +137,7 @@ int main(void) {
         args = (char**)malloc(count * sizeof(char*));
 
         int code = parse(line, args);
-        if (code == cdCode) {
+        if (code == cdCode || code == 0) {
             count = 0;
             free(args);
             continue;
