@@ -16,6 +16,9 @@ bool runInBackground = false;
 int count = 0;
 char workingDir[100];
 
+int cdCommand(char* token);
+int historyCommand();
+
 int parse(char* line, char** args) {
     char* token;
     line = strtok(line, "\n");
@@ -26,25 +29,11 @@ int parse(char* line, char** args) {
         exit(1);
     }
     else if (strcmp(token, "cd") == 0) {
-        if (count > 2) {
-            printf("%d\n", getpid());
-            fprintf(stderr, ERROR_CD_ARG);
-        }
-        else if (count == 2) {
-            token = strtok(NULL, " ");
-            printf("%d\n", getpid());
-            int outCode = chdir(token);
-            if (outCode == -1) {
-                printf("%d\n", getpid());
-                fprintf(stderr, ERROR_CD_FILE);
-            }
-        }
-        else {
-            printf("%d\n", getpid());
-            chdir(workingDir);
-        }
+        token = strtok(NULL, " ");
+        return cdCommand(token);
+    }
+    else if (strcmp(token, "history") == 0) {
 
-        return cdCode;
     }
 
     while (token != NULL) {
@@ -57,20 +46,54 @@ int parse(char* line, char** args) {
     }
 
     *args = NULL;
-
     return builtinCode;
+}
+
+int cdCommand(char* token) {
+    if (count > 2) {
+        printf("%d\n", getpid());
+        fprintf(stderr, ERROR_CD_ARG);
+
+
+    }
+    else if (count == 2) {
+        printf("%d\n", getpid());
+        int outCode = chdir(token);
+        if (outCode == -1) {
+            printf("%d\n", getpid());
+            fprintf(stderr, ERROR_CD_FILE);
+        }
+    }
+    else {
+        printf("%d\n", getpid());
+        chdir(workingDir);
+    }
+
+    return cdCode;
 }
 
 void execute(char** args) {
     pid_t pid;
     int status;
 
-    if ((pid = fork()) == 0) {
-        execvp(*args, args);
-    } else {
-        printf("%d\n", getpid());
-        if (!runInBackground) {
-            wait(&status);
+    if (runInBackground) {
+        if ((pid = fork()) == 0) {
+            setpgid(0, 0);
+            execvp(*args, args);
+        }
+        else {
+            printf("%d\n", pid);
+            return;
+        }
+    }
+    else {
+        if ((pid = fork()) == 0) {
+            execvp(*args, args);
+        } else {
+            printf("%d\n", pid);
+            if (waitpid(pid, NULL, 0) != pid) {
+                printf("Error\n");
+            }
         }
     }
 }
@@ -81,6 +104,7 @@ int main(void) {
     getcwd(workingDir, 100);
 
     while(1) {
+        runInBackground = false;
         printf("%s", "> ");
         fgets(line, MAX_CMND_LENGTH, stdin);
 
@@ -104,7 +128,7 @@ int main(void) {
 
         if(j>0) line[j]=0;
 
-        args = (char**)malloc((count + 1) * sizeof(char*));
+        args = (char**)malloc(count * sizeof(char*));
 
         int code = parse(line, args);
         if (code == cdCode) {
@@ -113,9 +137,8 @@ int main(void) {
             continue;
         }
 
+        count = 0;
         execute(args);
         free(args);
-
-        count = 0;
     }
 }
