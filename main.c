@@ -146,6 +146,20 @@ void historyCommand() {
 }
 
 void jobsCommand() {
+    int status;
+    int wait;
+
+    for (int i = 0; i <= jobIndex - 1; i++) {
+        wait = waitpid(jobs[i].pid, &status, WNOHANG);
+        if (wait == 0) {
+            jobs[i].status = (char *) realloc(jobs[i].status, strlen("RUNNING") * sizeof(char));
+            strcpy(jobs[i].status, "RUNNING");
+        } else {
+            jobs[i].status = (char *) realloc(jobs[i].status, strlen("DONE") * sizeof(char));
+            strcpy(jobs[i].status, "DONE");
+        }
+    }
+
     for (int i = 0; i <= jobIndex - 1; i++) {
         if (strcmp(jobs[i].status, "RUNNING") == 0) {
             printf("%d ", jobs[i].pid);
