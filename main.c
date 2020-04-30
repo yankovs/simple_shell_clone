@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 
 /*/
  * Macros we will use
@@ -20,13 +21,13 @@ typedef enum { false, true } bool;
  */
 bool runInBackground = false;
 int count = 0; // count the number of words in command
-char workingDir[100];
+char workingDir[100] = "";
 char* homedir = NULL;
 
 /*
  * Functions
  */
-int cdCommand(char* token);
+int cdCommand(char* line, char* token);
 void execute(char* line, char** args);
 void historyCommand();
 void jobsCommand();
@@ -35,9 +36,9 @@ void jobsCommand();
  * A job struct, a jobs array of 100 jobs
  */
 struct job {
-    char* command;
+    char command[MAX_CMND_LENGTH] ;
     pid_t pid;
-    char* status;
+    char status[MAX_CMND_LENGTH] ;
 } jobs[MAX_CMND_LENGTH];
 
 int jobIndex = 0; // represents the current size of actual job array
@@ -48,6 +49,8 @@ int jobIndex = 0; // represents the current size of actual job array
 int parse(char* line, char** args) {
     char* token;
     line = strtok(line, "\n"); // parse according to "\n"
+    char copyOfLine[strlen(line)];
+    strcpy(copyOfLine, line);
     token = strtok(line, " "); // parse according to " "
 
     if (strcmp(token, "exit") == 0) {
@@ -56,7 +59,7 @@ int parse(char* line, char** args) {
     }
     else if (strcmp(token, "cd") == 0) {
         token = strtok(NULL, " ");
-        return cdCommand(token);
+        return cdCommand(copyOfLine, token);
     }
     else if (strcmp(token, "history") == 0) {
         historyCommand();
@@ -92,13 +95,9 @@ int parse(char* line, char** args) {
 /*
  * Insert a new job into array, with it's command and pid
  */
-void insertJob(char* line, pid_t pid) {
-    jobs[jobIndex].command = (char *) malloc(strlen(line) * sizeof(char));
+void insertJob(char* line, pid_t pid_in) {
     strcpy(jobs[jobIndex].command, line);
-
-    jobs[jobIndex].pid = pid;
-
-    jobs[jobIndex].status = (char*)malloc(strlen("DONE") * sizeof(char));
+    jobs[jobIndex].pid = pid_in;
     strcpy(jobs[jobIndex].status, "DONE");
 
     jobIndex++;
@@ -107,8 +106,8 @@ void insertJob(char* line, pid_t pid) {
 /*
  * cd command, token are the arguments
  */
-int cdCommand(char* token) {
-    insertJob("cd", getpid());
+int cdCommand(char* line, char* token) {
+    insertJob(line, getpid());
 
     if (count > 2) {
         printf("%d\n", getpid());
@@ -118,25 +117,34 @@ int cdCommand(char* token) {
         printf("%d\n", getpid());
         if (strcmp(token, "~") == 0) {
             getcwd(workingDir, 100);
-            chdir(homedir);
+            if (chdir(homedir) == -1) {
+              fprintf(stderr, ERROR_MESSAGE);
+            }
             return NoExecCode;
         }
         else if (strcmp(token, "-") == 0) {
-            chdir(workingDir);
+            if (strcmp(workingDir, "") == 0) {
+            return NoExecCode;
+            }
+            if (chdir(workingDir) == -1) {
+              fprintf(stderr, ERROR_MESSAGE);
+            }
             return NoExecCode;
         }
 
         getcwd(workingDir, 100);
         int outCode = chdir(token);
         if (outCode == -1) {
-            printf("%d\n", getpid());
             fprintf(stderr, ERROR_CD_FILE);
         }
+        return NoExecCode;
     }
     else {
         printf("%d\n", getpid());
         getcwd(workingDir, 100);
-        chdir(homedir);
+        if (chdir(homedir) == -1) {
+              fprintf(stderr, ERROR_MESSAGE);
+            }
     }
 
     return NoExecCode;
@@ -148,16 +156,17 @@ int cdCommand(char* token) {
 void historyCommand() {
     int status;
     int wait;
+    
+    int i;
+    int j;
     /*
      * iterate jobs array, set status according to the status of the jobs
      */
-    for (int i = 0; i <= jobIndex - 1; i++) {
+    for (i = 0; i <= jobIndex - 1; i++) {
         wait = waitpid(jobs[i].pid, &status, WNOHANG);
         if (wait == 0) {
-            jobs[i].status = (char *) realloc(jobs[i].status, strlen("RUNNING") * sizeof(char));
             strcpy(jobs[i].status, "RUNNING");
         } else {
-            jobs[i].status = (char *) realloc(jobs[i].status, strlen("DONE") * sizeof(char));
             strcpy(jobs[i].status, "DONE");
         }
     }
@@ -165,10 +174,10 @@ void historyCommand() {
     /*
      * iterate jobs array, print info of each job
      */
-    for (int i = 0; i <= jobIndex - 1; i++) {
-        printf("%d ", jobs[i].pid);
-        printf("%s ", jobs[i].command);
-        printf("%s\n", jobs[i].status);
+    for (j = 0; j <= jobIndex - 1; j++) {
+        printf("%d ", jobs[j].pid);
+        printf("%s ", jobs[j].command);
+        printf("%s\n", jobs[j].status);
     }
 
     // Manually print history running
@@ -186,28 +195,32 @@ void historyCommand() {
 void jobsCommand() {
     int status;
     int wait;
+    
+    int i;
+    int j;
     /*
      * iterate jobs array, set status according to the status of the jobs
      */
-    for (int i = 0; i <= jobIndex - 1; i++) {
+    for (i = 0; i <= jobIndex - 1; i++) {
         wait = waitpid(jobs[i].pid, &status, WNOHANG);
         if (wait == 0) {
-            jobs[i].status = (char *) realloc(jobs[i].status, strlen("RUNNING") * sizeof(char));
             strcpy(jobs[i].status, "RUNNING");
         } else {
-            jobs[i].status = (char *) realloc(jobs[i].status, strlen("DONE") * sizeof(char));
             strcpy(jobs[i].status, "DONE");
         }
     }
     /*
      * iterate jobs array and print info about running jobs
      */
-    for (int i = 0; i <= jobIndex - 1; i++) {
-        if (strcmp(jobs[i].status, "RUNNING") == 0) {
-            printf("%d ", jobs[i].pid);
-            printf("%s\n", jobs[i].command);
+    for (j = 0; j <= jobIndex - 1; j++) {
+        if (strcmp(jobs[j].status, "RUNNING") == 0) {
+            printf("%d ", jobs[j].pid);
+            printf("%s\n", jobs[j].command);
         }
     }
+    
+    // insert jobs into jobs array for future reference
+    insertJob("jobs", getpid());
 }
 
 /*
@@ -255,7 +268,8 @@ void execute(char* line, char** args) {
  */
 void removeQuotes(char* line) {
     int j = 0;
-    for (int i = 0; i < strlen(line); i ++) {
+    int i = 0;
+    for (i = 0; i < strlen(line); i ++) {
         if (line[i] != '"' && line[i] != '\\') {
             line[j++] = line[i];
         } else if (line[i+1] == '"' && line[i] == '\\') {
@@ -272,7 +286,9 @@ void removeQuotes(char* line) {
  * count words in string
  */
 void countWord(char* line) {
-    for (int i = 0; line[i] != '\0'; i++)
+    int i = 0;
+    
+    for (i = 0; line[i] != '\0'; i++)
     {
         if (line[i] == ' ' && line[i+1] != ' ')
             count++;
